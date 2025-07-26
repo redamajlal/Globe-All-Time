@@ -148,6 +148,17 @@ renderer.domElement.addEventListener('wheel', (e) => {
     clouds.visible = camera.position.z > 3;
 });
 
+// Add rotation sensitivity control
+let sensitivity = 0.002;
+const slider = document.getElementById('sensitivitySlider');
+const display = document.getElementById('sensitivityValue');
+if (slider && display) {
+  slider.addEventListener('input', (e) => {
+    sensitivity = parseFloat(e.target.value);
+    display.textContent = sensitivity.toFixed(3);
+  });
+}
+
 function animate() {
     requestAnimationFrame(animate);
     
@@ -175,8 +186,9 @@ renderer.domElement.addEventListener('mousemove', (e) => {
             y: e.offsetY - previousMousePosition.y
         };
         
-        earth.rotation.y += deltaMove.x * 0.002;
-        earth.rotation.x += deltaMove.y * 0.002;
+        // use adjustable sensitivity
+        earth.rotation.y += deltaMove.x * sensitivity;
+        earth.rotation.x += deltaMove.y * sensitivity;
     }
     
     previousMousePosition = {
