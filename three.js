@@ -20,7 +20,8 @@ loader.load('galaxy.png', texture => {
     scene.add(new THREE.Mesh(geo, mat));
 });
 
-const earthGeo = new THREE.SphereGeometry(2, 32, 32);
+// First upgrade sphere resolutions for better quality
+const earthGeo = new THREE.SphereGeometry(2, 64, 64);
 const earthMat = new THREE.MeshPhongMaterial({
     map: loader.load('earthmap.jpeg'),
     specular: 0x333333,
@@ -29,7 +30,7 @@ const earthMat = new THREE.MeshPhongMaterial({
 const earth = new THREE.Mesh(earthGeo, earthMat);
 scene.add(earth);
 
-const cloudGeo = new THREE.SphereGeometry(2.03, 32, 32);
+const cloudGeo = new THREE.SphereGeometry(2.03, 64, 64);
 const cloudMat = new THREE.MeshPhongMaterial({
     map: loader.load('earthCloud.png'),
     transparent: true,
@@ -54,6 +55,41 @@ renderer.domElement.addEventListener('wheel', e => {
     const delta = e.deltaY > 0 ? STEP_Z : -STEP_Z;
     camera.position.z = Math.min(MAX_Z, Math.max(MIN_Z, camera.position.z + delta));
     clouds.visible = camera.position.z > 3;
+});
+
+// Add touch zoom with pinch gesture
+let initialTouchDistance = 0;
+let initialCameraZ = 0;
+
+canvas.addEventListener('touchstart', e => {
+    if (e.touches.length === 2) {
+        // Two finger touch - prepare for pinch zoom
+        initialTouchDistance = Math.hypot(
+            e.touches[0].clientX - e.touches[1].clientX,
+            e.touches[0].clientY - e.touches[1].clientY
+        );
+        initialCameraZ = camera.position.z;
+        isDragging = false; // Stop rotation when pinching
+    }
+});
+
+canvas.addEventListener('touchmove', e => {
+    if (e.touches.length === 2) {
+        // Two finger touch - handle pinch zoom
+        e.preventDefault();
+        const currentDistance = Math.hypot(
+            e.touches[0].clientX - e.touches[1].clientX,
+            e.touches[0].clientY - e.touches[1].clientY
+        );
+        
+        // Calculate zoom factor based on pinch distance change
+        const zoomFactor = initialTouchDistance / currentDistance;
+        const newZ = initialCameraZ * zoomFactor;
+        
+        // Apply same limits as wheel zoom
+        camera.position.z = Math.min(MAX_Z, Math.max(MIN_Z, newZ));
+        clouds.visible = camera.position.z > 3;
+    }
 });
 
 let sensitivity = 0.002;
@@ -88,6 +124,13 @@ const stopDrag = () => { isDragging = false; };
 canvas.addEventListener('pointerup',   stopDrag);
 canvas.addEventListener('pointerleave', stopDrag);
 canvas.addEventListener('pointercancel',stopDrag);
+
+// Handle window resize properly
+window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+});
 
 function animate() {
     requestAnimationFrame(animate);
