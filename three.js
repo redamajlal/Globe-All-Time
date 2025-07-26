@@ -65,11 +65,13 @@ slider.addEventListener('input', e => {
 let isDragging = false;
 let prevPos    = { x: 0, y: 0 };
 
-renderer.domElement.addEventListener('mousedown', () => {
+renderer.domElement.addEventListener('mousedown', (e) => {
+  e.preventDefault();
   isDragging = true;
 });
 
-renderer.domElement.addEventListener('mousemove', e => {
+renderer.domElement.addEventListener('mousemove', (e) => {
+  e.preventDefault();
   if (isDragging) {
     const dx = e.offsetX - prevPos.x;
     const dy = e.offsetY - prevPos.y;
