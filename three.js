@@ -62,36 +62,32 @@ slider.addEventListener('input', e => {
     sensitivity = parseFloat(e.target.value);
 });
 
+const canvas = renderer.domElement;
+canvas.style.touchAction = 'none';
+
 let isDragging = false;
 let prevPos    = { x: 0, y: 0 };
 
-renderer.domElement.addEventListener('mousedown', (e) => {
+canvas.addEventListener('pointerdown', e => {
   e.preventDefault();
   isDragging = true;
+  prevPos = { x: e.clientX, y: e.clientY };
 });
 
-renderer.domElement.addEventListener('mousemove', (e) => {
+canvas.addEventListener('pointermove', e => {
   e.preventDefault();
-  if (isDragging) {
-    const dx = e.offsetX - prevPos.x;
-    const dy = e.offsetY - prevPos.y;
-    earth.rotation.y += dx * sensitivity;
-    earth.rotation.x += dy * sensitivity;
-  }
-  prevPos = { x: e.offsetX, y: e.offsetY };
+  if (!isDragging) return;
+  const dx = e.clientX - prevPos.x;
+  const dy = e.clientY - prevPos.y;
+  earth.rotation.y += dx * sensitivity;
+  earth.rotation.x += dy * sensitivity;
+  prevPos = { x: e.clientX, y: e.clientY };
 });
 
-renderer.domElement.addEventListener('mouseup', () => {
-  isDragging = false;
-});
-
-renderer.domElement.addEventListener('mouseleave', () => {
-  isDragging = false;
-});
-
-window.addEventListener('mouseup', () => {
-  isDragging = false;
-});
+const stopDrag = () => { isDragging = false; };
+canvas.addEventListener('pointerup',   stopDrag);
+canvas.addEventListener('pointerleave', stopDrag);
+canvas.addEventListener('pointercancel',stopDrag);
 
 function animate() {
     requestAnimationFrame(animate);
