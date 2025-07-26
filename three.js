@@ -57,11 +57,16 @@ renderer.domElement.addEventListener('wheel', e => {
     clouds.visible = camera.position.z > 3;
 });
 
-// Add touch zoom with pinch gesture
-let initialTouchDistance = 0;
-let initialCameraZ = 0;
+// Improved touch handling
 
+// Fix the canvas reference to ensure we have it defined before using it
+const canvas = renderer.domElement;
+canvas.style.touchAction = 'none'; 
+
+// Replace the existing touch handlers with more reliable ones
 canvas.addEventListener('touchstart', e => {
+    e.preventDefault(); // Prevent default touch actions
+
     if (e.touches.length === 2) {
         // Two finger touch - prepare for pinch zoom
         initialTouchDistance = Math.hypot(
@@ -70,26 +75,70 @@ canvas.addEventListener('touchstart', e => {
         );
         initialCameraZ = camera.position.z;
         isDragging = false; // Stop rotation when pinching
+        console.log('Pinch start:', initialTouchDistance);
+    } else if (e.touches.length === 1) {
+        // Single touch - prepare for rotation
+        isDragging = true;
+        prevPos = { 
+            x: e.touches[0].clientX, 
+            y: e.touches[0].clientY 
+        };
+        console.log('Touch start at:', prevPos);
     }
 });
 
 canvas.addEventListener('touchmove', e => {
+    e.preventDefault(); // Prevent scrolling
+
     if (e.touches.length === 2) {
-        // Two finger touch - handle pinch zoom
-        e.preventDefault();
+        // Handle pinch zoom
         const currentDistance = Math.hypot(
             e.touches[0].clientX - e.touches[1].clientX,
             e.touches[0].clientY - e.touches[1].clientY
         );
         
-        // Calculate zoom factor based on pinch distance change
-        const zoomFactor = initialTouchDistance / currentDistance;
-        const newZ = initialCameraZ * zoomFactor;
+        if (currentDistance > 0 && initialTouchDistance > 0) {
+            // Calculate zoom factor
+            const zoomFactor = initialTouchDistance / currentDistance;
+            const newZ = initialCameraZ * zoomFactor;
+            
+            // Apply limits
+            const safeZ = Math.min(MAX_Z, Math.max(MIN_Z, newZ));
+            camera.position.z = safeZ;
+            clouds.visible = camera.position.z > 3;
+            console.log('Zoom to:', safeZ);
+        }
+    } else if (e.touches.length === 1 && isDragging) {
+        // Handle rotation (one finger drag)
+        const touchX = e.touches[0].clientX;
+        const touchY = e.touches[0].clientY;
         
-        // Apply same limits as wheel zoom
-        camera.position.z = Math.min(MAX_Z, Math.max(MIN_Z, newZ));
-        clouds.visible = camera.position.z > 3;
+        const dx = touchX - prevPos.x;
+        const dy = touchY - prevPos.y;
+        
+        earth.rotation.y += dx * sensitivity;
+        earth.rotation.x += dy * sensitivity;
+        
+        prevPos = { x: touchX, y: touchY };
     }
+});
+
+canvas.addEventListener('touchend', e => {
+    // If we still have one finger down and were previously pinching, 
+    // start rotating from current position
+    if (e.touches.length === 1) {
+        prevPos = { 
+            x: e.touches[0].clientX, 
+            y: e.touches[0].clientY 
+        };
+        isDragging = true;
+    } else {
+        isDragging = false;
+    }
+});
+
+canvas.addEventListener('touchcancel', () => {
+    isDragging = false;
 });
 
 let sensitivity = 0.002;
@@ -97,9 +146,6 @@ const slider = document.getElementById('sensitivitySlider');
 slider.addEventListener('input', e => {
     sensitivity = parseFloat(e.target.value);
 });
-
-const canvas = renderer.domElement;
-canvas.style.touchAction = 'none';
 
 let isDragging = false;
 let prevPos    = { x: 0, y: 0 };
