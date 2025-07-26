@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebGL Test - Globe, All Time</title>
+    <style>
+        body { 
+            background: black; 
+            color: white; 
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin: 0;
+            padding: 20px;
+        }
+        #result {
+            margin: 20px auto;
+            padding: 15px;
+            border-radius: 5px;
+            max-width: 600px;
+        }
+        .tips {
+            background-color: rgba(50, 50, 50, 0.8);
+            border-radius: 5px;
+            padding: 15px;
+            margin-top: 20px;
+            text-align: left;
+            display: none;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        h2 {
+            color: #6cf;
+        }
+        ul {
+            text-align: left;
+        }
+        li {
+            margin-bottom: 10px;
+        }
+        a {
+            color: #6cf;
+        }
+    </style>
+</head>
+<body>
+    <h1>Globe, All Time</h1>
+    <div id="result">Testing WebGL compatibility...</div>
+    
+    <div id="troubleshooting" class="tips">
+        <h2>WebGL Troubleshooting Tips</h2>
+        <ul>
+            <li><strong>Update your graphics drivers:</strong> Visit your graphics card manufacturer's website for the latest drivers.</li>
+            <li><strong>Use a modern browser:</strong> Try Chrome, Firefox, Edge, or Safari (latest versions).</li>
+            <li><strong>Check hardware acceleration:</strong> Make sure hardware acceleration is enabled in your browser settings.</li>
+            <li><strong>Disable browser extensions:</strong> Some extensions may interfere with WebGL.</li>
+            <li><strong>Check compatibility:</strong> Visit <a href="https://get.webgl.org" target="_blank">get.webgl.org</a> to test your general WebGL compatibility.</li>
+        </ul>
+        <p>If you believe this is an error and your device should support WebGL, please refresh the page to try again.</p>
+    </div>
+    
+    <script>
+        function webGLTest() {
+            const result = document.getElementById('result');
+            const troubleshooting = document.getElementById('troubleshooting');
+            
+            try {
+                const canvas = document.createElement('canvas');
+                const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+                
+                if (gl && gl instanceof WebGLRenderingContext) {
+                    // WebGL is supported!
+                    result.innerHTML = '✅ WebGL is supported!<br>' + 
+                        'Renderer: ' + gl.getParameter(gl.RENDERER) + '<br>' +
+                        'Vendor: ' + gl.getParameter(gl.VENDOR) + '<br>' +
+                        'Version: ' + gl.getParameter(gl.VERSION) + '<br><br>' +
+                        'Redirecting to 3D Globe...';
+                    result.style.backgroundColor = 'green';
+                    
+                    setTimeout(() => {
+                        window.location.href = 'index.html';
+                    }, 2000);
+                } else {
+                    result.innerHTML = '❌ WebGL is NOT supported by your browser!';
+                    result.style.backgroundColor = 'darkred';
+                    troubleshooting.style.display = 'block';
+                }
+            } catch (e) {
+                result.innerHTML = '❌ WebGL error: ' + e.message;
+                result.style.backgroundColor = 'darkred';
+                troubleshooting.style.display = 'block';
+            }
+        }
+        
+        window.onload = webGLTest;
+    </script>
+</body>
+</html>
