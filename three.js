@@ -20,7 +20,8 @@ loader.load('galaxy.png', texture => {
     scene.add(new THREE.Mesh(geo, mat));
 });
 
-const earthGeo = new THREE.SphereGeometry(2, 32, 32);
+// 1) Increase globe & cloud mesh resolution for higher quality
+const earthGeo = new THREE.SphereGeometry(2, 64, 64);
 const earthMat = new THREE.MeshPhongMaterial({
     map: loader.load('earthmap.jpeg'),
     specular: 0x333333,
@@ -29,7 +30,7 @@ const earthMat = new THREE.MeshPhongMaterial({
 const earth = new THREE.Mesh(earthGeo, earthMat);
 scene.add(earth);
 
-const cloudGeo = new THREE.SphereGeometry(2.03, 32, 32);
+const cloudGeo = new THREE.SphereGeometry(2.03, 64, 64);
 const cloudMat = new THREE.MeshPhongMaterial({
     map: loader.load('earthCloud.png'),
     transparent: true,
@@ -47,51 +48,23 @@ scene.add(dirLight);
 scene.add(new THREE.AmbientLight(0x202020, 0.2));
 scene.add(new THREE.HemisphereLight(0x000000, 0x000000, 0.05));
 
-const MIN_Z = 2.2, MAX_Z = 10, STEP_Z = 0.3;
-renderer.domElement.addEventListener('wheel', e => {
-    e.preventDefault();
-    isDragging = false;
-    const delta = e.deltaY > 0 ? STEP_Z : -STEP_Z;
-    camera.position.z = Math.min(MAX_Z, Math.max(MIN_Z, camera.position.z + delta));
-    clouds.visible = camera.position.z > 3;
-});
+// 2) Setup OrbitControls (make sure to include OrbitControls.js in index.html)
+const controls = new THREE.OrbitControls(camera, renderer.domElement);
+controls.enablePan = false;
+controls.minDistance = 0.5;   // closest zoom
+controls.maxDistance = 10;    // farthest zoom
+controls.rotateSpeed = sensitivity;
+controls.zoomSpeed = 1.2;
 
-let sensitivity = 0.002;
-const slider = document.getElementById('sensitivitySlider');
-slider.addEventListener('input', e => {
-    sensitivity = parseFloat(e.target.value);
-});
-
-const canvas = renderer.domElement;
-canvas.style.touchAction = 'none';
-
-let isDragging = false;
-let prevPos    = { x: 0, y: 0 };
-
-canvas.addEventListener('pointerdown', e => {
-  e.preventDefault();
-  isDragging = true;
-  prevPos = { x: e.clientX, y: e.clientY };
-});
-
-canvas.addEventListener('pointermove', e => {
-  e.preventDefault();
-  if (!isDragging) return;
-  const dx = e.clientX - prevPos.x;
-  const dy = e.clientY - prevPos.y;
-  earth.rotation.y += dx * sensitivity;
-  earth.rotation.x += dy * sensitivity;
-  prevPos = { x: e.clientX, y: e.clientY };
-});
-
-const stopDrag = () => { isDragging = false; };
-canvas.addEventListener('pointerup',   stopDrag);
-canvas.addEventListener('pointerleave', stopDrag);
-canvas.addEventListener('pointercancel',stopDrag);
+// 3) Remove manual wheel & pointer handlers (OrbitControls handles zoom & rotate)
 
 function animate() {
     requestAnimationFrame(animate);
+
+    // optional auto‐rotate
     earth.rotation.y += 0.0005;
+
+    controls.update();
     renderer.render(scene, camera);
 }
 
