@@ -20,7 +20,6 @@ loader.load('galaxy.png', texture => {
     scene.add(new THREE.Mesh(geo, mat));
 });
 
-// First upgrade sphere resolutions for better quality
 const earthGeo = new THREE.SphereGeometry(2, 64, 64);
 const earthMat = new THREE.MeshPhongMaterial({
     map: loader.load('earthmap.jpeg'),
@@ -57,27 +56,21 @@ renderer.domElement.addEventListener('wheel', e => {
     clouds.visible = camera.position.z > 3;
 });
 
-// Improved touch handling
-
-// Fix the canvas reference to ensure we have it defined before using it
 const canvas = renderer.domElement;
 canvas.style.touchAction = 'none'; 
 
-// Replace the existing touch handlers with more reliable ones
 canvas.addEventListener('touchstart', e => {
-    e.preventDefault(); // Prevent default touch actions
+    e.preventDefault();
 
     if (e.touches.length === 2) {
-        // Two finger touch - prepare for pinch zoom
         initialTouchDistance = Math.hypot(
             e.touches[0].clientX - e.touches[1].clientX,
             e.touches[0].clientY - e.touches[1].clientY
         );
         initialCameraZ = camera.position.z;
-        isDragging = false; // Stop rotation when pinching
+        isDragging = false;
         console.log('Pinch start:', initialTouchDistance);
     } else if (e.touches.length === 1) {
-        // Single touch - prepare for rotation
         isDragging = true;
         prevPos = { 
             x: e.touches[0].clientX, 
@@ -88,28 +81,24 @@ canvas.addEventListener('touchstart', e => {
 });
 
 canvas.addEventListener('touchmove', e => {
-    e.preventDefault(); // Prevent scrolling
+    e.preventDefault();
 
     if (e.touches.length === 2) {
-        // Handle pinch zoom
         const currentDistance = Math.hypot(
             e.touches[0].clientX - e.touches[1].clientX,
             e.touches[0].clientY - e.touches[1].clientY
         );
         
         if (currentDistance > 0 && initialTouchDistance > 0) {
-            // Calculate zoom factor
             const zoomFactor = initialTouchDistance / currentDistance;
             const newZ = initialCameraZ * zoomFactor;
             
-            // Apply limits
             const safeZ = Math.min(MAX_Z, Math.max(MIN_Z, newZ));
             camera.position.z = safeZ;
             clouds.visible = camera.position.z > 3;
             console.log('Zoom to:', safeZ);
         }
     } else if (e.touches.length === 1 && isDragging) {
-        // Handle rotation (one finger drag)
         const touchX = e.touches[0].clientX;
         const touchY = e.touches[0].clientY;
         
@@ -124,8 +113,6 @@ canvas.addEventListener('touchmove', e => {
 });
 
 canvas.addEventListener('touchend', e => {
-    // If we still have one finger down and were previously pinching, 
-    // start rotating from current position
     if (e.touches.length === 1) {
         prevPos = { 
             x: e.touches[0].clientX, 
@@ -171,7 +158,6 @@ canvas.addEventListener('pointerup',   stopDrag);
 canvas.addEventListener('pointerleave', stopDrag);
 canvas.addEventListener('pointercancel',stopDrag);
 
-// Handle window resize properly
 window.addEventListener('resize', () => {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
