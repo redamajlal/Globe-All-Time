@@ -13,7 +13,6 @@ const loader = new THREE.TextureLoader();
 loader.setCrossOrigin('anonymous');
 loader.setPath('textures/');
 
-// Galaxy skybox
 loader.load('galaxy.png', texture => {
     const geo = new THREE.SphereGeometry(500, 32, 32);
     geo.scale(-1, 1, 1);
