@@ -187,34 +187,44 @@ Object.assign(infoPopup.style, {
 });
 document.body.appendChild(infoPopup);
 
-// GeoJSON layer for country borders
 const bordersGroup = new THREE.Group();
 earth.add(bordersGroup);
 
-// Raycaster for detecting clicks on countries
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
 
-// Load world borders GeoJSON
+let lastHoveredCountry = "";
+let countryFeatures = [];
+let countryNames = [];
+
 fetch('assets/world_2010.geojson')
   .then(response => response.json())
   .then(geoJson => {
-    // Convert GeoJSON to 3D lines
+    // Store features for searching
+    countryFeatures = geoJson.features;
+    
+    // Build a list of country names for autocomplete
+    countryNames = geoJson.features.map(feature => {
+      return feature.properties.NAME || feature.properties.name || 'Unknown';
+    }).sort();
+    
+    // Initialize search box after data is loaded
+    initializeSearchBox();
+    
+    // convert lines to 3d
     const lineMaterial = new THREE.LineBasicMaterial({ 
       color: 0x3399ff,
       transparent: true,
       opacity: 0.8,
       linewidth: 1
     });
-    
-    // Scale factor - slightly above Earth's surface
-    const radius = 2.01;
-    
+
+    const radius = 1.999999; // tweak this up it looks real funny
+
     geoJson.features.forEach(feature => {
       const countryName = feature.properties.NAME || feature.properties.name || 'Unknown';
       const countryCode = feature.properties.ISO_A2 || feature.properties.iso_a2 || '';
       
-      // Process each polygon in the feature
       if (feature.geometry.type === 'Polygon') {
         processPolygon(feature.geometry.coordinates, radius, lineMaterial, countryName, countryCode);
       } else if (feature.geometry.type === 'MultiPolygon') {
@@ -230,20 +240,16 @@ fetch('assets/world_2010.geojson')
     console.error('Error loading GeoJSON:', error);
   });
 
-// Update the processPolygon function to correct the longitude offset
 function processPolygon(polygon, radius, material, countryName, countryCode) {
   polygon.forEach(ring => {
     const points = [];
     
     ring.forEach(coord => {
-      // GeoJSON format is [longitude, latitude]
-      // Add longitude offset to align with texture (adjust this value as needed)
-      const longitudeOffset = Math.PI; // 180 degrees offset
+      const longitudeOffset = Math.PI;
       
       const lon = (coord[0] * Math.PI / 180) + longitudeOffset;
       const lat = coord[1] * Math.PI / 180;
       
-      // Convert to Cartesian coordinates
       const x = -radius * Math.cos(lat) * Math.cos(lon);
       const y = radius * Math.sin(lat);
       const z = radius * Math.cos(lat) * Math.sin(lon);
@@ -263,9 +269,7 @@ function processPolygon(polygon, radius, material, countryName, countryCode) {
   });
 }
 
-// Function to show country information
 function showCountryInfo(countryName) {
-  // Fetch country data from Wikipedia
   const apiUrl = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(countryName)}`;
   
   infoPopup.innerHTML = `<h3>${countryName}</h3><p>Loading information...</p>`;
@@ -274,7 +278,6 @@ function showCountryInfo(countryName) {
   fetch(apiUrl)
     .then(response => response.json())
     .then(data => {
-      // Create the popup content
       const content = `
         <div style="display:flex; justify-content:space-between; align-items:center">
           <h3 style="margin-top:0">${countryName}</h3>
@@ -289,7 +292,6 @@ function showCountryInfo(countryName) {
       
       infoPopup.innerHTML = content;
       
-      // Add close button functionality
       document.getElementById('close-info').addEventListener('click', () => {
         infoPopup.style.display = 'none';
       });
@@ -312,67 +314,45 @@ function showCountryInfo(countryName) {
     });
 }
 
-// Update the click handler with better precision
 renderer.domElement.addEventListener('click', (event) => {
-  // Only process clicks, not drags
   if (isDragging) return;
   
-  // Calculate mouse position in normalized coordinates
   mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
   mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
   
-  // Increase raycaster precision significantly
   raycaster.params.Line.threshold = 0.2;
   raycaster.setFromCamera(mouse, camera);
   
-  // Get all intersections
   const allIntersects = raycaster.intersectObjects(bordersGroup.children, true);
   
-  // If we hit something
-  if (allIntersects.length > 0) {
-    // Filter intersections to get only countries on the visible side
-    // This helps with selection precision
-    const frontIntersects = allIntersects.filter(hit => {
-      // Get the direction to this point from the camera
-      const dir = new THREE.Vector3().subVectors(hit.point, camera.position).normalize();
-      
-      // Get direction from camera to earth center
-      const earthDir = new THREE.Vector3().subVectors(earth.position, camera.position).normalize();
-      
-      // If dot product is negative, the point is in front of the earth center from camera's view
-      return dir.dot(earthDir) < 0;
+  // Only consider intersections on the visible side of the globe
+  const frontIntersects = allIntersects.filter(hit => {
+    const hitToCamera = new THREE.Vector3().subVectors(camera.position, hit.point).normalize();
+    const normal = hit.point.clone().normalize();
+    return hitToCamera.dot(normal) > 0;
+  });
+  
+  if (frontIntersects.length > 0) {
+    const bestHit = frontIntersects[0];
+    const countryName = bestHit.object.userData.countryName;
+    console.log("Selected:", countryName);
+    
+    // Highlight the entire country border, not just the segment clicked
+    highlightCountryByName(countryName);
+    
+    // Show country info
+    showCountryInfo(countryName);
+  } else {
+    // Clear any previous highlights when clicking empty space
+    bordersGroup.children.forEach(line => {
+      highlightCountry(line, false);
     });
     
-    // Use the first visible intersection or fall back to closest overall
-    const bestHit = frontIntersects.length > 0 ? frontIntersects[0] : allIntersects[0];
-    
-    console.log("Selected:", bestHit.object.userData.countryName);
-    showCountryInfo(bestHit.object.userData.countryName);
-  } else {
-    // Clicked empty space, close info popup
     infoPopup.style.display = 'none';
   }
 });
 
-// FIX 3: Add visual feedback by highlighting borders on hover
-// This helps users see which country they're about to select
-function highlightCountry(object, isHovered) {
-  if (!object) return;
-  
-  const material = object.material;
-  if (isHovered) {
-    material.color.set(0xffff00); // Yellow for highlight
-    material.opacity = 1.0;
-    material.linewidth = 2; // Note: linewidth > 1 may not work on all GPUs
-  } else {
-    material.color.set(0x3399ff); // Blue for normal
-    material.opacity = 0.8;
-    material.linewidth = 1;
-  }
-}
-
-// Update hover detection to provide visual feedback
-let hoveredObject = null;
+// Also update your mousemove handler to highlight the entire country on hover
 renderer.domElement.addEventListener('mousemove', (event) => {
   if (isDragging) return;
   
@@ -382,46 +362,316 @@ renderer.domElement.addEventListener('mousemove', (event) => {
   raycaster.params.Line.threshold = 0.2;
   raycaster.setFromCamera(mouse, camera);
   
-  const intersects = raycaster.intersectObjects(bordersGroup.children, true);
+  const allIntersects = raycaster.intersectObjects(bordersGroup.children, true);
   
-  // Remove highlight from previous hover
+  // Clear previous highlight if country changes
   if (hoveredObject) {
-    highlightCountry(hoveredObject, false);
-    hoveredObject = null;
+    // Don't clear highlight here - we'll handle it below
   }
   
-  // Highlight new hover
-  if (intersects.length > 0) {
-    const object = intersects[0].object;
-    highlightCountry(object, true);
-    hoveredObject = object;
-    
+  // Filter to only get intersections on the front side
+  const frontIntersects = allIntersects.filter(hit => {
+    const hitToCamera = new THREE.Vector3().subVectors(camera.position, hit.point).normalize();
+    const normal = hit.point.clone().normalize();
+    return hitToCamera.dot(normal) > 0;
+  });
+  
+  if (frontIntersects.length > 0) {
+    const object = frontIntersects[0].object;
     const countryName = object.userData.countryName;
+    
     if (countryName !== lastHoveredCountry) {
+      // Country changed - clear all highlights and highlight the new country
+      bordersGroup.children.forEach(line => {
+        highlightCountry(line, false);
+      });
+      
+      // Highlight all segments of this country
+      bordersGroup.children.forEach(line => {
+        if (line.userData.countryName === countryName) {
+          highlightCountry(line, true);
+        }
+      });
+      
       console.log("Hovering over:", countryName);
       lastHoveredCountry = countryName;
+      hoveredObject = object; // Keep track of one segment for reference
+    }
+  } else {
+    // No country under cursor - clear all highlights
+    if (lastHoveredCountry) {
+      bordersGroup.children.forEach(line => {
+        highlightCountry(line, false);
+      });
+      lastHoveredCountry = "";
+      hoveredObject = null;
     }
   }
 });
 
 
-// Make isDragging variable accessible to both touch and mouse events
 isDragging = false;
-
-// Add a variable to control auto-rotation
-let autoRotating = false; // Set to false to disable rotation by default
 
 function rotate() {
     requestAnimationFrame(rotate);
-    
-    // Only rotate if autoRotating is true
-    if (autoRotating) {
-        earth.rotation.y += 0.0005;
-    }
-    
     renderer.render(scene, camera);
 }
 
 console.log("Starting animation...");
 rotate();
-console.log("Animation started - Earth rotation disabled by default");
+console.log("Animation started");
+
+// Create the search box UI
+function initializeSearchBox() {
+  // Create container
+  const searchContainer = document.createElement('div');
+  searchContainer.id = 'search-container';
+  Object.assign(searchContainer.style, {
+    position: 'absolute',
+    top: '20px',
+    left: '20px',
+    zIndex: 1000,
+    width: '250px'
+  });
+
+  const searchInput = document.createElement('input');
+  searchInput.id = 'country-search';
+  searchInput.type = 'text';
+  searchInput.placeholder = 'Search for a country...';
+  Object.assign(searchInput.style, {
+    width: '100%',
+    padding: '8px 12px',
+    border: '1px solid #444',
+    borderRadius: '4px',
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    color: 'white',
+    fontSize: '14px',
+    boxSizing: 'border-box'
+  });
+
+  const suggestionsContainer = document.createElement('div');
+  suggestionsContainer.id = 'search-suggestions';
+  Object.assign(suggestionsContainer.style, {
+    display: 'none',
+    position: 'absolute',
+    width: '100%',
+    maxHeight: '200px',
+    overflowY: 'auto',
+    backgroundColor: 'white',
+    border: '1px solid #444',
+    borderTop: 'none',
+    borderBottomLeftRadius: '4px',
+    borderBottomRightRadius: '4px',
+    zIndex: 1001
+  });
+
+  searchContainer.appendChild(searchInput);
+  searchContainer.appendChild(suggestionsContainer);
+  document.body.appendChild(searchContainer);
+
+  searchInput.addEventListener('input', () => {
+    const query = searchInput.value.trim().toLowerCase();
+    
+    if (query.length < 2) {
+      suggestionsContainer.innerHTML = '';
+      suggestionsContainer.style.display = 'none';
+      return;
+    }
+
+    const matches = countryNames.filter(name => 
+      name.toLowerCase().includes(query)
+    );
+
+    if (matches.length > 0) {
+      suggestionsContainer.innerHTML = '';
+      matches.slice(0, 10).forEach(name => {
+        const item = document.createElement('div');
+        item.textContent = name;
+        Object.assign(item.style, {
+          padding: '8px 12px',
+          cursor: 'pointer',
+          borderBottom: '1px solid #444'
+        });
+        
+        item.addEventListener('mouseover', () => {
+          item.style.backgroundColor = 'rgba(80,80,80,0.8)';
+        });
+        
+        item.addEventListener('mouseout', () => {
+          item.style.backgroundColor = 'transparent';
+        });
+        
+        item.addEventListener('click', () => {
+          searchInput.value = name;
+          suggestionsContainer.style.display = 'none';
+          selectCountry(name);
+        });
+        
+        suggestionsContainer.appendChild(item);
+      });
+      
+      suggestionsContainer.style.display = 'block';
+    } else {
+      suggestionsContainer.innerHTML = '';
+      suggestionsContainer.style.display = 'none';
+    }
+  });
+
+  searchInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      const query = searchInput.value.trim();
+      if (query) {
+        selectCountry(query);
+        suggestionsContainer.style.display = 'none';
+      }
+    }
+  });
+
+  document.addEventListener('click', (e) => {
+    if (e.target !== searchInput && e.target !== suggestionsContainer) {
+      suggestionsContainer.style.display = 'none';
+    }
+  });
+}
+
+function selectCountry(countryName) {
+  // Find matching feature
+  const feature = countryFeatures.find(f => {
+    const name = f.properties.NAME || f.properties.name || '';
+    return name.toLowerCase() === countryName.toLowerCase();
+  });
+
+  if (!feature) {
+    console.log("Country not found:", countryName);
+    return;
+  }
+
+  showCountryInfo(countryName);
+  
+  centerGlobeOnCountry(feature);
+  
+  highlightCountryByName(countryName);
+}
+
+function centerGlobeOnCountry(feature) {
+  let lon, lat;
+  
+  if (feature.geometry.type === 'Polygon') {
+    const coords = feature.geometry.coordinates[0];
+    [lon, lat] = calculateCentroid(coords);
+  } else if (feature.geometry.type === 'MultiPolygon') {
+    // Use the largest polygon (typically the mainland)
+    let maxArea = 0;
+    let bestCoords = null;
+    
+    for (const polygon of feature.geometry.coordinates) {
+      const area = calculatePolygonArea(polygon[0]);
+      if (area > maxArea) {
+        maxArea = area;
+        bestCoords = polygon[0];
+      }
+    }
+    
+    [lon, lat] = calculateCentroid(bestCoords || feature.geometry.coordinates[0][0]);
+  }
+  
+  // Convert centroid to 3D rotation
+  const phi = lat * Math.PI / 180;
+  const theta = -lon * Math.PI / 180;
+  
+  // Animate rotation to center the country
+  animateEarthRotation(theta, phi, 1000);
+}
+
+// Helper to calculate centroid of a polygon
+function calculateCentroid(coordinates) {
+  let sumX = 0;
+  let sumY = 0;
+  
+  for (const coord of coordinates) {
+    sumX += coord[0];
+    sumY += coord[1];
+  }
+  
+  return [sumX / coordinates.length, sumY / coordinates.length];
+}
+
+// Helper to calculate polygon area (for finding largest polygon)
+function calculatePolygonArea(coordinates) {
+  let area = 0;
+  
+  for (let i = 0; i < coordinates.length; i++) {
+    const j = (i + 1) % coordinates.length;
+    area += coordinates[i][0] * coordinates[j][1];
+    area -= coordinates[j][0] * coordinates[i][1];
+  }
+  
+  return Math.abs(area / 2);
+}
+
+// Animate earth rotation to center a point
+function animateEarthRotation(targetLon, targetLat, duration) {
+  const startRotation = {
+    x: earth.rotation.x,
+    y: earth.rotation.y
+  };
+  
+  const targetRotation = {
+    x: targetLat,
+    y: targetLon
+  };
+  
+  const startTime = Date.now();
+  
+  function updateRotation() {
+    const elapsed = Date.now() - startTime;
+    const progress = Math.min(elapsed / duration, 1);
+    
+    // Ease function (cubic)
+    const t = 1 - Math.pow(1 - progress, 3);
+    
+    earth.rotation.x = startRotation.x * (1 - t) + targetRotation.x * t;
+    earth.rotation.y = startRotation.y * (1 - t) + targetRotation.y * t;
+    
+    if (progress < 1) {
+      requestAnimationFrame(updateRotation);
+    }
+  }
+  
+  updateRotation();
+}
+
+// Highlight a country by name
+function highlightCountryByName(countryName) {
+  // Clear all previous highlights
+  bordersGroup.children.forEach(line => {
+    highlightCountry(line, false);
+  });
+  
+  // Find and highlight all borders for this country
+  bordersGroup.children.forEach(line => {
+    if (line.userData.countryName.toLowerCase() === countryName.toLowerCase()) {
+      highlightCountry(line, true);
+    }
+  });
+}
+
+// Add this function to handle country highlighting
+function highlightCountry(object, isHovered) {
+  if (!object || !object.material) return;
+  
+  if (isHovered) {
+    // Highlight with bright yellow color
+    object.material.color.set(0xffff00);  // Yellow
+    object.material.opacity = 1.0;        // Full opacity
+    object.material.linewidth = 2;        // Thicker line (note: may not work on all GPUs)
+  } else {
+    // Reset to default blue color
+    object.material.color.set(0x3399ff);  // Blue
+    object.material.opacity = 0.8;        // Default opacity
+    object.material.linewidth = 1;        // Default width
+  }
+}
+
+// Also add this variable to track the currently highlighted object
+let hoveredObject = null;
