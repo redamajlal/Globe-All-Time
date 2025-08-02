@@ -164,28 +164,6 @@ window.addEventListener('resize', () => {
     renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
-const infoPopup = document.createElement('div');
-infoPopup.id = 'country-info';
-Object.assign(infoPopup.style, {
-  position: 'absolute',
-  top: '20px',
-  left: '50%',
-  transform: 'translateX(-50%)',
-  backgroundColor: 'rgba(0,0,0,0.8)',
-  color: 'white',
-  padding: '15px',
-  borderRadius: '8px',
-  maxWidth: '400px',
-  maxHeight: '70vh',
-  overflowY: 'auto',
-  display: 'none',
-  zIndex: 1000,
-  fontFamily: 'Arial, sans-serif',
-  boxShadow: '0 4px 8px rgba(0,0,0,0.5)',
-  transition: 'opacity 0.3s'
-});
-document.body.appendChild(infoPopup);
-
 const bordersGroup = new THREE.Group();
 earth.add(bordersGroup);
 
@@ -196,7 +174,7 @@ let lastHoveredCountry = "";
 let countryFeatures = [];
 let countryNames = [];
 
-fetch('assets/world_2010.geojson')
+fetch('assets/custom.geo.json')
   .then(response => response.json())
   .then(geoJson => {
     countryFeatures = geoJson.features;
@@ -265,51 +243,6 @@ function processPolygon(polygon, radius, material, countryName, countryCode) {
   });
 }
 
-function showCountryInfo(countryName) {
-  const apiUrl = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(countryName)}`;
-  
-  infoPopup.innerHTML = `<h3>${countryName}</h3><p>Loading information...</p>`;
-  infoPopup.style.display = 'block';
-  
-  fetch(apiUrl)
-    .then(response => response.json())
-    .then(data => {
-      const content = `
-        <div style="display:flex; justify-content:space-between; align-items:center">
-          <h3 style="margin-top:0">${countryName}</h3>
-          <button id="close-info" style="background:none; border:none; color:white; cursor:pointer; font-size:20px">&times;</button>
-        </div>
-        ${data.thumbnail ? `<img src="${data.thumbnail.source}" alt="${countryName}" style="float:right; margin:0 0 10px 10px; max-width:150px; border-radius:4px;">` : ''}
-        <p>${data.extract}</p>
-        <a href="${data.content_urls.desktop.page}" target="_blank" style="color:#6cf; text-decoration:none;">
-          Read more on Wikipedia
-        </a>
-      `;
-      
-      infoPopup.innerHTML = content;
-      
-      document.getElementById('close-info').addEventListener('click', () => {
-        infoPopup.style.display = 'none';
-      });
-    })
-    .catch(error => {
-      infoPopup.innerHTML = `
-        <h3>${countryName}</h3>
-        <p>Sorry, could not load information for this country.</p>
-        <a href="https://en.wikipedia.org/wiki/${encodeURIComponent(countryName)}" target="_blank" style="color:#6cf; text-decoration:none;">
-          Try Wikipedia directly
-        </a>
-        <div><button id="close-info" style="margin-top:10px; padding:5px 10px; cursor:pointer;">Close</button></div>
-      `;
-      
-      document.getElementById('close-info').addEventListener('click', () => {
-        infoPopup.style.display = 'none';
-      });
-      
-      console.error('Error fetching Wikipedia data:', error);
-    });
-}
-
 renderer.domElement.addEventListener('click', (event) => {
   if (isDragging) return;
   
@@ -331,10 +264,9 @@ renderer.domElement.addEventListener('click', (event) => {
   
   if (frontIntersects.length > 0) {
     const bestHit = frontIntersects[0];
-    console.log("Selected:", bestHit.object.userData.countryName);
     showCountryInfo(bestHit.object.userData.countryName);
   } else {
-    infoPopup.style.display = 'none';
+    hideCountryInfo();
   }
 });
 
